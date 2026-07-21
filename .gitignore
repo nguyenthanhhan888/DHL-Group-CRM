@@ -1,0 +1,9 @@
+# Cấu hình cục bộ chứa thông tin nhạy cảm
+config.local.js
+
+# Thư mục chứa các gói phụ thuộc
+/node_modules
+
+# Cấu hình của các trình soạn thảo code
+.vscode/
+.idea/
