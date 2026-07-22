@@ -18,8 +18,8 @@ export const DashboardService = {
       totalKiosks,
       activeKiosks,
       expiredKiosks,
-      monthPayments,
-      yearPayments,
+      monthKioskRevenue,
+      yearKioskRevenue,
       categoryDistribution,
       expiringKiosks,
       recentCustomers,
@@ -30,8 +30,8 @@ export const DashboardService = {
         .eq('status', 'active')
         .or(`end_date.is.null,end_date.gte.${todayDate}`)),
       countRows('kiosks', (query) => query.or(`status.eq.expired,end_date.lt.${todayDate}`)),
-      getPaymentsInRange(monthStart, nextMonthStart),
-      getPaymentsInRange(yearStart, nextYearStart),
+      getKioskRevenueInRange(monthStart, nextMonthStart),
+      getKioskRevenueInRange(yearStart, nextYearStart),
       getCategoryDistribution(),
       getExpiringKiosks(),
       getRecentCustomers(),
@@ -43,11 +43,11 @@ export const DashboardService = {
         totalKiosks,
         activeKiosks,
         expiredKiosks,
-        revenueThisMonth: sumPayments(monthPayments),
-        revenueThisYear: sumPayments(yearPayments),
+        revenueThisMonth: sumKioskRevenue(monthKioskRevenue, 'total_paid'),
+        revenueThisYear: sumKioskRevenue(yearKioskRevenue, 'kiosk_total_paid'),
       },
       charts: {
-        monthlyRevenue: buildMonthlyRevenueSeries(yearPayments),
+        monthlyRevenue: buildMonthlyRevenueSeries(yearKioskRevenue),
         categoryDistribution,
       },
       lists: {
@@ -71,15 +71,14 @@ async function countRows(tableName, applyFilters) {
   return count || 0;
 }
 
-async function getPaymentsInRange(startDate, endDate) {
+async function getKioskRevenueInRange(startDate, endDate) {
   const supabase = requireSupabaseClient();
   const { data } = await runQuery(
     supabase
-      .from('payments')
-      .select('total_amount, created_at')
-      .eq('payment_status', 'completed')
-      .gte('created_at', startDate.toISOString())
-      .lt('created_at', endDate.toISOString()),
+      .from('kiosks')
+      .select('total_paid, kiosk_total_paid, start_date')
+      .gte('start_date', toDateOnly(startDate))
+      .lt('start_date', toDateOnly(endDate)),
   );
 
   return data || [];
@@ -138,20 +137,20 @@ async function getRecentCustomers(limit = 5) {
   return data || [];
 }
 
-function sumPayments(payments) {
-  return payments.reduce((total, payment) => total + Number(payment.total_amount || 0), 0);
+function sumKioskRevenue(kiosks, field) {
+  return kiosks.reduce((total, kiosk) => total + Number(kiosk[field] || 0), 0);
 }
 
-function buildMonthlyRevenueSeries(payments) {
+function buildMonthlyRevenueSeries(kiosks) {
   const series = Array.from({ length: 12 }, (_, index) => ({
     month: index,
     total: 0,
   }));
 
-  for (const payment of payments) {
-    const month = new Date(payment.created_at).getMonth();
+  for (const kiosk of kiosks) {
+    const month = Number(String(kiosk.start_date || '').slice(5, 7)) - 1;
     if (series[month]) {
-      series[month].total += Number(payment.total_amount || 0);
+      series[month].total += Number(kiosk.total_paid || 0);
     }
   }
 
