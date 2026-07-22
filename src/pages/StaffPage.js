@@ -78,7 +78,7 @@ function openCreateDialog() {
           <label class="form-group"><span>Username</span><input class="form-control" name="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+" autocomplete="off"></label>
           <label class="form-group"><span>Email</span><input class="form-control" name="email" type="email" required autocomplete="email"></label>
         </div>
-        <label class="form-group"><span>Mật khẩu ban đầu</span><input class="form-control" name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="form-group"><span>Mật khẩu ban đầu</span><input class="form-control" name="password" type="password" required minlength="6" autocomplete="new-password"></label>
         <p class="muted-text">Tài khoản do admin tạo được kích hoạt ngay và chỉ có quyền duyệt đơn.</p>
         <div class="modal-actions"><button class="btn-secondary" type="button" data-cancel-staff>Hủy</button><button class="btn-primary" type="submit">Tạo tài khoản</button></div>
       </form>`,
@@ -116,8 +116,8 @@ function openResetDialog(userId) {
     body: `
       <form id="reset-staff-password-form">
         <p>Đặt mật khẩu mới cho <strong>${escapeHtml(staff.displayName)}</strong>.</p>
-        <label class="form-group"><span>Mật khẩu mới</span><input class="form-control" name="password" type="password" required minlength="8" autocomplete="new-password"></label>
-        <label class="form-group"><span>Nhập lại mật khẩu</span><input class="form-control" name="confirmation" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="form-group"><span>Mật khẩu mới</span><input class="form-control" name="password" type="password" required minlength="6" autocomplete="new-password"></label>
+        <label class="form-group"><span>Nhập lại mật khẩu</span><input class="form-control" name="confirmation" type="password" required minlength="6" autocomplete="new-password"></label>
         <div class="modal-actions"><button class="btn-secondary" type="button" data-cancel-staff>Hủy</button><button class="btn-primary" type="submit">Lưu mật khẩu mới</button></div>
       </form>`,
   });

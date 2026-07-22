@@ -67,7 +67,7 @@ async function createStaff(admin: ReturnType<typeof createClient>, body: Record<
   const password = String(body.password || '');
   if (!displayName || !/^[a-z0-9._-]{3,40}$/.test(username)) return respond(400, 'Họ tên hoặc username không hợp lệ.');
   if (!/^\S+@\S+\.\S+$/.test(email)) return respond(400, 'Email không hợp lệ.');
-  if (password.length < 8) return respond(400, 'Mật khẩu phải có ít nhất 8 ký tự.');
+  if (password.length < 6) return respond(400, 'Mật khẩu phải có ít nhất 6 ký tự.');
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -95,7 +95,7 @@ async function resetPassword(admin: ReturnType<typeof createClient>, body: Recor
   const userId = String(body.userId || '');
   const password = String(body.password || '');
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return respond(400, 'Tài khoản không hợp lệ.');
-  if (password.length < 8) return respond(400, 'Mật khẩu phải có ít nhất 8 ký tự.');
+  if (password.length < 6) return respond(400, 'Mật khẩu phải có ít nhất 6 ký tự.');
 
   const { data: target } = await admin.from('user_roles').select('role, is_active').eq('user_id', userId).maybeSingle();
   if (target?.role !== 'reviewer') return respond(400, 'Chỉ có thể đặt lại mật khẩu nhân viên kiểm duyệt.');
