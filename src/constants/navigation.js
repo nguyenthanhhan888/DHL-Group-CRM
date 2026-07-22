@@ -10,6 +10,7 @@ export const PAGE_TITLES = {
   logs: 'Lịch sử thay đổi',
   settings: 'Cài đặt',
   register: 'Đăng ký trực tuyến',
+  'registration-requests': 'Duyệt đơn đăng ký',
   reports: 'Báo cáo',
 };
 
@@ -29,6 +30,7 @@ export const NAV_SECTIONS = [
       { route: 'payments', label: 'Thanh toán', icon: '💰' },
       { route: 'categories', label: 'Danh mục', icon: '🏷️' },
       { route: 'business-types', label: 'Loại hình KD', icon: '🧾' },
+      { route: 'registration-requests', label: 'Duyệt đăng ký', icon: '✅' },
     ],
   },
   {
@@ -36,7 +38,15 @@ export const NAV_SECTIONS = [
     items: [
       { route: 'logs', label: 'Lịch sử', icon: '🕘' },
       { route: 'settings', label: 'Cài đặt', icon: '⚙️' },
-      { route: 'register', label: 'Đăng ký', icon: '📝' },
+    ],
+  },
+];
+
+export const REVIEWER_NAV_SECTIONS = [
+  {
+    label: 'Kiểm duyệt',
+    items: [
+      { route: 'registration-requests', label: 'Duyệt đăng ký', icon: '✅' },
     ],
   },
 ];
