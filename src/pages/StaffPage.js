@@ -30,8 +30,14 @@ StaffPage.afterRender = function afterRenderStaff() {
   document.getElementById('add-staff-button')?.addEventListener('click', openCreateDialog);
   document.getElementById('reload-staff-button')?.addEventListener('click', loadStaff);
   document.getElementById('staff-table-body')?.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-reset-password]');
-    if (button) openResetDialog(button.dataset.resetPassword);
+    const resetButton = event.target.closest('[data-reset-password]');
+    const editButton = event.target.closest('[data-edit-staff]');
+    const activeButton = event.target.closest('[data-toggle-staff]');
+    const deleteButton = event.target.closest('[data-delete-staff]');
+    if (resetButton) openResetDialog(resetButton.dataset.resetPassword);
+    if (editButton) openEditDialog(editButton.dataset.editStaff);
+    if (activeButton) toggleStaff(activeButton.dataset.toggleStaff);
+    if (deleteButton) deleteStaff(deleteButton.dataset.deleteStaff);
   });
   loadStaff();
 };
@@ -63,9 +69,20 @@ function renderRows() {
       <td>${item.role === 'admin' ? 'Admin' : 'Kiểm duyệt'}</td>
       <td><span class="badge badge-${item.isActive ? 'active' : 'inactive'}">${item.isActive ? 'Hoạt động' : 'Đã khóa'}</span></td>
       <td>${formatDateTime(item.lastSignInAt)}</td>
-      <td>${item.role === 'reviewer' ? `<button class="btn-secondary compact-button" type="button" data-reset-password="${item.userId}">Đặt lại mật khẩu</button>` : '—'}</td>
+      <td>${staffActions(item)}</td>
     </tr>
   `).join('');
+}
+
+function staffActions(item) {
+  if (item.role !== 'reviewer') return '—';
+  const deleteDisabled = Number(item.reviewedCount || 0) > 0;
+  return `<div class="staff-actions">
+    <button class="btn-secondary compact-button" type="button" data-edit-staff="${item.userId}">Sửa</button>
+    <button class="btn-secondary compact-button" type="button" data-reset-password="${item.userId}">Mật khẩu</button>
+    <button class="${item.isActive ? 'table-cancel-button' : 'table-approve-button'}" type="button" data-toggle-staff="${item.userId}">${item.isActive ? 'Khóa' : 'Mở'}</button>
+    <button class="table-cancel-button" type="button" data-delete-staff="${item.userId}" ${deleteDisabled ? 'disabled title="Nhân viên đã có lịch sử duyệt đơn; hãy khóa tài khoản thay vì xóa."' : ''}>Xóa</button>
+  </div>`;
 }
 
 function openCreateDialog() {
@@ -105,6 +122,84 @@ async function handleCreate(event) {
   } finally {
     state.busy = false;
     setFormBusy(form, false);
+  }
+}
+
+function openEditDialog(userId) {
+  const staff = state.staff.find((item) => item.userId === userId && item.role === 'reviewer');
+  if (!staff) return;
+  Modal.open({
+    title: 'Sửa thông tin nhân viên',
+    body: `
+      <form id="edit-staff-form">
+        <label class="form-group"><span>Họ và tên</span><input class="form-control" name="displayName" required maxlength="100" value="${escapeHtml(staff.displayName || '')}" autocomplete="name"></label>
+        <div class="form-row">
+          <label class="form-group"><span>Username</span><input class="form-control" name="username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]+" value="${escapeHtml(staff.username || '')}" autocomplete="off"></label>
+          <label class="form-group"><span>Email</span><input class="form-control" name="email" type="email" required value="${escapeHtml(staff.email || '')}" autocomplete="email"></label>
+        </div>
+        <div class="modal-actions"><button class="btn-secondary" type="button" data-cancel-staff>Hủy</button><button class="btn-primary" type="submit">Lưu thay đổi</button></div>
+      </form>`,
+  });
+  document.querySelector('[data-cancel-staff]')?.addEventListener('click', Modal.close);
+  document.getElementById('edit-staff-form')?.addEventListener('submit', (event) => handleEdit(event, userId));
+}
+
+async function handleEdit(event, userId) {
+  event.preventDefault();
+  if (state.busy) return;
+  const form = event.currentTarget;
+  if (!form.reportValidity()) return;
+  state.busy = true;
+  setFormBusy(form, true);
+  try {
+    await StaffService.update(userId, Object.fromEntries(new FormData(form)));
+    Modal.close();
+    Toast.show('Đã cập nhật thông tin nhân viên.');
+    await loadStaff();
+  } catch (error) {
+    window.alert(error?.message || 'Không thể cập nhật nhân viên.');
+  } finally {
+    state.busy = false;
+    setFormBusy(form, false);
+  }
+}
+
+async function toggleStaff(userId) {
+  if (state.busy) return;
+  const staff = state.staff.find((item) => item.userId === userId && item.role === 'reviewer');
+  if (!staff) return;
+  const nextActive = !staff.isActive;
+  if (!window.confirm(`${nextActive ? 'Mở lại' : 'Khóa'} tài khoản ${staff.displayName}?`)) return;
+  state.busy = true;
+  try {
+    await StaffService.setActive(userId, nextActive);
+    Toast.show(nextActive ? 'Đã mở lại tài khoản.' : 'Đã khóa tài khoản.');
+    await loadStaff();
+  } catch (error) {
+    window.alert(error?.message || 'Không thể đổi trạng thái tài khoản.');
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function deleteStaff(userId) {
+  if (state.busy) return;
+  const staff = state.staff.find((item) => item.userId === userId && item.role === 'reviewer');
+  if (!staff || Number(staff.reviewedCount || 0) > 0) return;
+  const confirmation = window.prompt(`Nhập username "${staff.username}" để xóa vĩnh viễn tài khoản:`)?.trim();
+  if (confirmation !== staff.username) {
+    if (confirmation !== undefined && confirmation !== null) window.alert('Username xác nhận chưa đúng.');
+    return;
+  }
+  state.busy = true;
+  try {
+    await StaffService.remove(userId);
+    Toast.show('Đã xóa tài khoản nhân viên.');
+    await loadStaff();
+  } catch (error) {
+    window.alert(error?.message || 'Không thể xóa tài khoản.');
+  } finally {
+    state.busy = false;
   }
 }
 
