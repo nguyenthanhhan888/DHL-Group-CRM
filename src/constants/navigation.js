@@ -11,6 +11,7 @@ export const PAGE_TITLES = {
   settings: 'Cài đặt',
   register: 'Đăng ký trực tuyến',
   'registration-requests': 'Duyệt đơn đăng ký',
+  staff: 'Quản lý nhân viên',
   reports: 'Báo cáo',
 };
 
@@ -31,6 +32,7 @@ export const NAV_SECTIONS = [
       { route: 'categories', label: 'Danh mục', icon: '🏷️' },
       { route: 'business-types', label: 'Loại hình KD', icon: '🧾' },
       { route: 'registration-requests', label: 'Duyệt đăng ký', icon: '✅' },
+      { route: 'staff', label: 'Nhân viên', icon: '🛡️' },
     ],
   },
   {

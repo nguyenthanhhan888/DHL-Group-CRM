@@ -38,6 +38,8 @@ body {
 .auth-card h1 { margin: 12px 0 6px; color: #fff; font-size: 25px; }
 .auth-card > p { margin: 0 0 24px; color: #94a3b8; line-height: 1.6; }
 .auth-submit { width: 100%; margin-top: 4px; }
+.compact-button { min-height: 34px; padding: 7px 10px; white-space: nowrap; }
+.staff-table { min-width: 820px; }
 .public-register-link { display: block; margin-top: 20px; color: #60a5fa; text-align: center; text-decoration: none; }
 
 .public-shell { min-height: 100vh; }
