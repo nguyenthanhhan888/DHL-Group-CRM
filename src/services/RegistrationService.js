@@ -4,6 +4,7 @@ import { KioskService } from './KioskService.js';
 import { PaymentService } from './PaymentService.js';
 import { addMonths, startOfToday, toDateOnly } from '../utils/date.js';
 import { buildFacebookGroupMemberUrl } from '../constants/facebook.js';
+import { requireSupabaseClient, runQuery } from './BaseService.js';
 
 const DEFAULT_PAYMENT_METHOD = 'transfer';
 
@@ -34,56 +35,26 @@ export const RegistrationService = {
 
     const preview = buildRegistrationPreview(businessType, { months, discount });
     const normalizedDiscountReason = normalizeDiscountReason(preview.discount, discountReason);
-    const facebookId = normalizeOptionalText(customer.facebook_id);
-    const facebookGroupLink = buildFacebookGroupMemberUrl(facebookId);
-    const { data: createdCustomer } = await CustomerService.create({
-      facebook_name: normalizeRequiredText(customer.facebook_name, 'Tên Facebook'),
-      facebook_id: facebookId,
-      facebook_link: normalizeOptionalText(customer.facebook_link),
-      facebook_group_link: facebookGroupLink,
-      phone: normalizeRequiredText(customer.phone, 'Số điện thoại'),
-      address: normalizeOptionalText(customer.address),
-      status: 'pending',
-      note: normalizeOptionalText(customer.note),
-    });
-
-    const { data: kiosk } = await KioskService.create({
-      customer_id: createdCustomer.id,
-      facebook_name: normalizeRequiredText(customer.facebook_name, 'Tên Facebook'),
-      facebook_id: facebookId,
-      facebook_link: normalizeOptionalText(customer.facebook_link),
-      facebook_group_link: facebookGroupLink,
-      category_id: businessType.category_id,
-      business_type_id: businessType.id,
-      start_date: preview.startDate,
-      end_date: preview.endDate,
-      status: 'pending',
-      auto_approve: false,
-      note: normalizeOptionalText(customer.note),
-    });
-
-    const { data: payment } = await PaymentService.create({
-      customer_id: createdCustomer.id,
-      kiosk_id: kiosk.id,
-      start_date: preview.startDate,
-      end_date: preview.endDate,
-      months: preview.months,
-      price_per_month: preview.pricePerMonth,
-      discount: preview.discount,
-      discount_reason: normalizedDiscountReason,
-      total_amount: preview.totalAmount,
-      payment_method: DEFAULT_PAYMENT_METHOD,
-      payment_status: 'pending',
-      note: normalizeOptionalText(customer.note),
-    });
+    const { data: requestId } = await runQuery(requireSupabaseClient().rpc('submit_registration_request', {
+      facebook_name_input: normalizeRequiredText(customer.facebook_name, 'Tên Facebook'),
+      phone_input: normalizeRequiredText(customer.phone, 'Số điện thoại'),
+      facebook_id_input: normalizeOptionalText(customer.facebook_id),
+      facebook_link_input: normalizeOptionalText(customer.facebook_link),
+      address_input: normalizeOptionalText(customer.address),
+      note_input: normalizeOptionalText(customer.note),
+      category_id_input: businessType.category_id,
+      business_type_id_input: businessType.id,
+      months_input: preview.months,
+      discount_input: preview.discount,
+      discount_reason_input: normalizedDiscountReason,
+    }));
 
     return {
       data: {
-        customer: createdCustomer,
-        kiosk,
-        payment,
+        requestId,
         preview,
         businessType,
+        facebookName: customer.facebook_name,
       },
     };
   },
