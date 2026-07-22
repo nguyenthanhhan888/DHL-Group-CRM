@@ -1,4 +1,9 @@
-export function AppLayout({ navSections }) {
+import { escapeHtml } from '../utils/html.js';
+
+export function AppLayout({ navSections, user }) {
+  const displayName = user?.display_name || user?.username || 'Người dùng';
+  const roleLabel = user?.role === 'admin' ? 'Quản trị viên' : 'Nhân viên kiểm duyệt';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'U';
   return `
     <div class="app-shell">
       <aside class="sidebar" data-sidebar>
@@ -13,11 +18,12 @@ export function AppLayout({ navSections }) {
           ${navSections.map(renderNavSection).join('')}
         </nav>
         <div class="sidebar-footer">
-          <div class="user-avatar">A</div>
-          <div>
-            <div class="user-name">Admin</div>
-            <div class="user-role">Môi trường vận hành</div>
+          <div class="user-avatar">${escapeHtml(initial)}</div>
+          <div class="sidebar-user-meta">
+            <div class="user-name">${escapeHtml(displayName)}</div>
+            <div class="user-role">${escapeHtml(roleLabel)}</div>
           </div>
+          <button class="logout-button" type="button" data-logout aria-label="Đăng xuất">↪</button>
         </div>
       </aside>
 
