@@ -12,6 +12,18 @@ export const StaffService = {
   async resetPassword(userId, password) {
     return invoke({ action: 'reset_password', userId, password });
   },
+
+  async update(userId, payload) {
+    return invoke({ action: 'update', userId, ...payload });
+  },
+
+  async setActive(userId, isActive) {
+    return invoke({ action: 'set_active', userId, isActive });
+  },
+
+  async remove(userId) {
+    return invoke({ action: 'delete', userId });
+  },
 };
 
 async function invoke(body) {
