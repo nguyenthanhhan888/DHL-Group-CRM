@@ -21,6 +21,7 @@ import { ReportsPage } from './pages/ReportsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegistrationRequestsPage } from './pages/RegistrationRequestsPage.js';
+import { StaffPage } from './pages/StaffPage.js';
 
 const routes = {
   dashboard: DashboardPage,
@@ -36,6 +37,7 @@ const routes = {
   register: RegisterPage,
   reports: ReportsPage,
   'registration-requests': RegistrationRequestsPage,
+  staff: StaffPage,
 };
 
 async function initApp() {
