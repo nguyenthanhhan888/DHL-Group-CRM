@@ -55,6 +55,8 @@ export const RegistrationService = {
         preview,
         businessType,
         facebookName: customer.facebook_name,
+        customer: { facebook_name: customer.facebook_name },
+        kiosk: { facebook_name: customer.facebook_name },
       },
     };
   },
