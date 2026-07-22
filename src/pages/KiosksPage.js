@@ -13,11 +13,9 @@ import { escapeHtml } from '../utils/html.js';
 const PAGE_SIZE_OPTIONS = [12, 24, 48];
 const KIOSK_STATUSES = [
   { value: 'active', label: 'Hoạt động' },
-  { value: 'inactive', label: 'Không hoạt động' },
   { value: 'expired', label: 'Hết hạn' },
   { value: 'warning', label: 'Sắp hết hạn' },
   { value: 'pending', label: 'Chờ duyệt' },
-  { value: 'suspended', label: 'Tạm ngưng' },
 ];
 
 const state = {

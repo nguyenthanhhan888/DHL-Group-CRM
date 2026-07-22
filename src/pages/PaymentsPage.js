@@ -1,7 +1,9 @@
 import { EmptyState } from '../components/EmptyState.js';
+import { Modal } from '../components/Modal.js';
 import { PageHeader } from '../components/PageHeader.js';
 import { StatCard } from '../components/StatCard.js';
-import { DisabledButton, Toolbar } from '../components/Toolbar.js';
+import { Toast } from '../components/Toast.js';
+import { Toolbar } from '../components/Toolbar.js';
 import { BusinessTypeService } from '../services/BusinessTypeService.js';
 import { PaymentService } from '../services/PaymentService.js';
 import { formatCurrency } from '../utils/currency.js';
@@ -21,6 +23,7 @@ const PAYMENT_COLUMNS = [
   { label: 'Trạng thái thanh toán', key: 'payment_status' },
   { label: 'Người xác nhận', key: null },
   { label: 'Ngày tạo', key: 'created_at' },
+  { label: 'Phê duyệt', key: null },
 ];
 
 const PAYMENT_STATUSES = [
@@ -30,17 +33,9 @@ const PAYMENT_STATUSES = [
   { value: 'cancelled', label: 'Đã hủy' },
 ];
 
-const PAYMENT_METHODS = [
-  { value: 'transfer', label: 'Chuyển khoản' },
-  { value: 'bank_transfer', label: 'Chuyển khoản NH' },
-  { value: 'cash', label: 'Tiền mặt' },
-  { value: 'momo', label: 'Momo' },
-];
-
 const state = {
   searchTerm: '',
   status: '',
-  paymentMethod: '',
   businessTypeId: '',
   page: 1,
   pageSize: 10,
@@ -48,14 +43,15 @@ const state = {
   total: 0,
   requestId: 0,
   businessTypes: [],
+  items: [],
+  processingPaymentId: null,
 };
 
 export function PaymentsPage() {
   return `
     ${PageHeader({
       title: 'Thanh toán',
-      description: 'Lịch sử thanh toán bất biến, xác nhận qua Supabase RPC.',
-      actions: DisabledButton({ label: '+ Tạo thanh toán' }),
+      description: 'Xác nhận thanh toán một lần để kích hoạt toàn bộ hồ sơ đăng ký.',
     })}
     ${Toolbar({
       children: `
@@ -74,16 +70,11 @@ export function PaymentsPage() {
         <select id="payment-business-type-filter" class="filter-select" aria-label="Lọc loại hình kinh doanh">
           <option value="">Tất cả loại hình KD</option>
         </select>
-        <select id="payment-method-filter" class="filter-select" aria-label="Lọc phương thức thanh toán">
-          <option value="">Tất cả phương thức</option>
-          ${PAYMENT_METHODS.map((method) => `<option value="${method.value}">${method.label}</option>`).join('')}
-        </select>
       `,
     })}
     <div class="payments-summary">
       ${StatCard({ tone: 'green', icon: '💰', value: '<span id="payments-total-revenue">—</span>', label: 'Tổng thu' })}
       ${StatCard({ tone: 'blue', icon: '📅', value: '<span id="payments-month-revenue">—</span>', label: 'Tháng này' })}
-      ${StatCard({ tone: 'teal', icon: '🏦', value: '<span id="payments-transfer-revenue">—</span>', label: 'Chuyển khoản' })}
       ${StatCard({ tone: 'purple', icon: '⏳', value: '<span id="payments-pending-count">—</span>', label: 'Chờ xác nhận' })}
     </div>
     <div class="table-card payments-table-card">
@@ -120,13 +111,11 @@ function syncPaymentControls() {
   const searchInput = document.getElementById('payment-search');
   const statusFilter = document.getElementById('payment-status-filter');
   const businessTypeFilter = document.getElementById('payment-business-type-filter');
-  const methodFilter = document.getElementById('payment-method-filter');
   const pageSizeSelect = document.getElementById('payments-page-size');
 
   if (searchInput) searchInput.value = state.searchTerm;
   if (statusFilter) statusFilter.value = state.status;
   if (businessTypeFilter) businessTypeFilter.value = state.businessTypeId;
-  if (methodFilter) methodFilter.value = state.paymentMethod;
   if (pageSizeSelect) pageSizeSelect.value = String(state.pageSize);
 }
 
@@ -134,8 +123,8 @@ function bindPaymentEvents() {
   const searchInput = document.getElementById('payment-search');
   const statusFilter = document.getElementById('payment-status-filter');
   const businessTypeFilter = document.getElementById('payment-business-type-filter');
-  const methodFilter = document.getElementById('payment-method-filter');
   const pageSizeSelect = document.getElementById('payments-page-size');
+  const tableBody = document.getElementById('payments-table-body');
 
   searchInput?.addEventListener('input', debounce((event) => {
     state.searchTerm = event.target.value.trim();
@@ -151,12 +140,6 @@ function bindPaymentEvents() {
 
   businessTypeFilter?.addEventListener('change', (event) => {
     state.businessTypeId = event.target.value;
-    state.page = 1;
-    loadPayments();
-  });
-
-  methodFilter?.addEventListener('change', (event) => {
-    state.paymentMethod = event.target.value;
     state.page = 1;
     loadPayments();
   });
@@ -191,6 +174,22 @@ function bindPaymentEvents() {
       loadPayments();
     });
   });
+
+  tableBody?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-payment-approve], [data-payment-cancel]');
+    if (!button || state.processingPaymentId) return;
+
+    const paymentId = button.dataset.paymentApprove || button.dataset.paymentCancel;
+    const payment = state.items.find((item) => String(item.id) === paymentId);
+    if (!payment) return;
+
+    if (button.matches('[data-payment-cancel]')) {
+      openPaymentCancellation(payment);
+      return;
+    }
+
+    openPaymentApproval(payment);
+  });
 }
 
 async function loadBusinessTypeOptions() {
@@ -220,7 +219,6 @@ async function loadPayments() {
     const filters = {
       searchTerm: state.searchTerm,
       status: state.status,
-      paymentMethod: state.paymentMethod,
       businessTypeId: state.businessTypeId,
     };
     const { data, count, summary } = await PaymentService.listWithSummary({
@@ -232,6 +230,7 @@ async function loadPayments() {
     if (requestId !== state.requestId) return;
 
     state.total = count || 0;
+    state.items = data || [];
     renderSummary(summary);
     renderPayments(data || []);
     renderPagination();
@@ -281,6 +280,7 @@ function renderPayments(payments) {
       <td>${renderPaymentStatusBadge(payment.payment_status)}</td>
       <td>${escapeHtml(confirmedBy(payment))}</td>
       <td>${formatDateTime(payment.created_at)}</td>
+      <td>${renderApprovalAction(payment)}</td>
     </tr>
   `).join('');
 }
@@ -288,8 +288,131 @@ function renderPayments(payments) {
 function renderSummary(summary = {}) {
   setText('payments-total-revenue', formatCurrency(summary.totalRevenue || 0));
   setText('payments-month-revenue', formatCurrency(summary.monthRevenue || 0));
-  setText('payments-transfer-revenue', formatCurrency(summary.transferRevenue || 0));
   setText('payments-pending-count', String(summary.pendingCount || 0));
+}
+
+function renderApprovalAction(payment) {
+  const status = String(payment.payment_status || '').toLowerCase();
+  if (status === 'completed') {
+    return '<span class="approval-state approved">Đã duyệt</span>';
+  }
+  if (status === 'rejected') {
+    return '<span class="approval-state rejected">Đã từ chối</span>';
+  }
+  if (status === 'cancelled') {
+    return '<span class="approval-state cancelled">Đã hủy</span>';
+  }
+  if (status !== 'pending') return '—';
+
+  const isProcessing = String(state.processingPaymentId) === String(payment.id);
+  return `
+    <div class="payment-approval-actions">
+      <button
+        class="table-approve-button"
+        type="button"
+        data-payment-approve="${escapeHtml(payment.id)}"
+        ${isProcessing ? 'disabled' : ''}
+      >Xác nhận</button>
+      <button
+        class="table-cancel-button"
+        type="button"
+        data-payment-cancel="${escapeHtml(payment.id)}"
+        ${isProcessing ? 'disabled' : ''}
+      >Hủy</button>
+    </div>
+  `;
+}
+
+function openPaymentApproval(payment) {
+  Modal.open({
+    title: 'Xác nhận thanh toán',
+    body: `
+      <div class="approval-message">
+        <p>Xác nhận đã nhận chuyển khoản cho Kiosk <strong>${escapeHtml(payment.kiosks?.facebook_name || '—')}</strong>?</p>
+        <div class="registration-summary">
+          <div class="setting-item"><span class="setting-name">Khách hàng</span><span class="setting-value">${escapeHtml(payment.customers?.facebook_name || '—')}</span></div>
+          <div class="setting-item"><span class="setting-name">Số tiền</span><span class="setting-value">${formatCurrency(payment.total_amount || 0)}</span></div>
+        </div>
+        <p class="muted-text">Thao tác này sẽ hoàn thành thanh toán và kích hoạt dữ liệu liên quan theo logic database.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" data-approval-cancel>Đóng</button>
+        <button class="btn-primary" type="button" data-approval-confirm>Xác nhận thanh toán</button>
+      </div>
+    `,
+  });
+
+  document.querySelector('[data-approval-cancel]')?.addEventListener('click', Modal.close);
+  document.querySelector('[data-approval-confirm]')?.addEventListener('click', (event) => {
+    confirmPayment(payment.id, event.currentTarget);
+  });
+}
+
+function openPaymentCancellation(payment) {
+  Modal.open({
+    title: 'Hủy đăng ký',
+    body: `
+      <div class="approval-message">
+        <p>Hủy đăng ký Kiosk <strong>${escapeHtml(payment.kiosks?.facebook_name || '—')}</strong>?</p>
+        <div class="registration-summary">
+          <div class="setting-item"><span class="setting-name">Khách hàng</span><span class="setting-value">${escapeHtml(payment.customers?.facebook_name || '—')}</span></div>
+          <div class="setting-item"><span class="setting-name">Số tiền</span><span class="setting-value">${formatCurrency(payment.total_amount || 0)}</span></div>
+        </div>
+        <p class="muted-text">Nếu bạn vẫn đang chờ tiền, hãy đóng hộp thoại để giữ trạng thái chờ xác nhận. Chỉ hủy khi quyết định không tiếp tục đăng ký.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" type="button" data-cancellation-close>Đóng</button>
+        <button class="btn-danger" type="button" data-cancellation-confirm>Hủy đăng ký</button>
+      </div>
+    `,
+  });
+
+  document.querySelector('[data-cancellation-close]')?.addEventListener('click', Modal.close);
+  document.querySelector('[data-cancellation-confirm]')?.addEventListener('click', (event) => {
+    cancelRegistration(payment.id, event.currentTarget);
+  });
+}
+
+async function confirmPayment(paymentId, button) {
+  if (state.processingPaymentId) return;
+
+  state.processingPaymentId = paymentId;
+  button.disabled = true;
+  button.textContent = 'Đang xác nhận...';
+
+  try {
+    await PaymentService.confirm(paymentId);
+    Modal.close();
+    Toast.show('Đã xác nhận thanh toán và kích hoạt hồ sơ đăng ký.');
+    await loadPayments();
+  } catch (error) {
+    Toast.show(error?.message || 'Không thể xác nhận thanh toán.');
+    button.disabled = false;
+    button.textContent = 'Xác nhận thanh toán';
+  } finally {
+    state.processingPaymentId = null;
+  }
+}
+
+async function cancelRegistration(paymentId, button) {
+  if (state.processingPaymentId) return;
+
+  state.processingPaymentId = paymentId;
+  button.disabled = true;
+  button.textContent = 'Đang hủy...';
+
+  try {
+    await PaymentService.cancelRegistration(paymentId);
+    Modal.close();
+    Toast.show('Đã hủy đăng ký và chuyển hồ sơ chờ duyệt sang không hoạt động.');
+    await loadPayments();
+  } catch (error) {
+    Toast.show(error?.message || 'Không thể hủy đăng ký.');
+    button.disabled = false;
+    button.textContent = 'Hủy đăng ký';
+  } finally {
+    state.processingPaymentId = null;
+  }
 }
 
 function renderCustomer(payment) {

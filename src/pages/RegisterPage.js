@@ -8,16 +8,8 @@ import { escapeHtml } from '../utils/html.js';
 
 const STEPS = [
   'Thông tin khách hàng',
-  'Loại hình kinh doanh',
-  'Số tháng',
-  'Tính giá',
-  'Xác nhận',
-];
-
-const PAYMENT_METHODS = [
-  { value: 'transfer', label: 'Chuyển khoản' },
-  { value: 'cash', label: 'Tiền mặt' },
-  { value: 'momo', label: 'Momo' },
+  'Loại hình và thời hạn',
+  'Thanh toán',
 ];
 
 const VIETQR_CONFIG = {
@@ -35,7 +27,6 @@ const state = {
   businessTypes: [],
   selectedBusinessType: null,
   preview: null,
-  submitted: null,
 };
 
 export function RegisterPage() {
@@ -44,7 +35,7 @@ export function RegisterPage() {
   return `
     ${PageHeader({
       title: 'Đăng ký trực tuyến',
-      description: 'Tạo hồ sơ đăng ký mới với trạng thái chờ xác nhận.',
+      description: 'Đăng ký Kiosk và thanh toán bằng chuyển khoản VietQR.',
     })}
     <section class="form-card registration-card">
       <form id="public-registration-form" novalidate>
@@ -63,30 +54,26 @@ export function RegisterPage() {
           <div class="form-row">
             <label class="form-group">
               <span>Tên Facebook *</span>
-              <input class="form-control" id="register-facebook-name" type="text" autocomplete="off" required />
+              <input class="form-control" id="register-facebook-name" type="text" autocomplete="name" required />
             </label>
             <label class="form-group">
               <span>Số điện thoại *</span>
-              <input class="form-control" id="register-phone" type="tel" autocomplete="off" required />
+              <input class="form-control" id="register-phone" type="tel" inputmode="tel" autocomplete="tel" required />
             </label>
           </div>
           <div class="form-row">
             <label class="form-group">
-              <span>Facebook ID</span>
-              <input class="form-control" id="register-facebook-id" type="text" autocomplete="off" />
+              <span>Facebook ID <small class="field-optional">Không bắt buộc</small></span>
+              <input class="form-control" id="register-facebook-id" type="text" inputmode="numeric" autocomplete="off" />
             </label>
             <label class="form-group">
               <span>Link Facebook</span>
-              <input class="form-control" id="register-facebook-link" type="url" autocomplete="off" />
+              <input class="form-control" id="register-facebook-link" type="url" inputmode="url" autocomplete="url" />
             </label>
           </div>
           <label class="form-group">
-            <span>Link nhóm Facebook</span>
-            <input class="form-control" id="register-facebook-group-link" type="url" autocomplete="off" />
-          </label>
-          <label class="form-group">
             <span>Địa chỉ</span>
-            <textarea class="form-control" id="register-address" rows="2"></textarea>
+            <textarea class="form-control" id="register-address" rows="2" autocomplete="street-address"></textarea>
           </label>
           <label class="form-group">
             <span>Ghi chú</span>
@@ -109,64 +96,46 @@ export function RegisterPage() {
               </select>
             </label>
           </div>
-          <div class="registration-summary">
-            ${summaryRow('Giá theo tháng', '<span id="register-selected-price">—</span>', true)}
-            ${summaryRow('Trạng thái', '<span class="badge badge-pending">Chờ xác nhận</span>', true)}
-          </div>
-        </div>
-
-        <div class="registration-panel hidden" data-registration-panel="2">
           <div class="form-row">
             <label class="form-group">
               <span>Số tháng *</span>
               <input class="form-control" id="register-months" type="number" min="1" step="1" value="1" required />
             </label>
             <label class="form-group">
-              <span>Phương thức thanh toán</span>
-              <select class="form-control" id="register-payment-method">
-                ${PAYMENT_METHODS.map((method) => `<option value="${method.value}">${method.label}</option>`).join('')}
-              </select>
+              <span>Giảm giá (VNĐ)</span>
+              <input class="form-control" id="register-discount" type="number" min="0" step="1000" value="0" />
             </label>
+          </div>
+          <label class="form-group">
+            <span>Lý do giảm giá <small class="field-optional">Bắt buộc khi có giảm giá</small></span>
+            <input class="form-control" id="register-discount-reason" type="text" autocomplete="off" />
+          </label>
+          <div class="registration-summary">
+            ${summaryRow('Giá theo tháng', '<span id="register-selected-price">—</span>', true)}
+            ${summaryRow('Tạm tính', '<span id="register-step-subtotal">—</span>', true)}
+            ${summaryRow('Giảm giá', '<span id="register-step-discount">0 đ</span>', true)}
+            ${summaryRow('Thành tiền', '<span id="register-step-total">—</span>', true)}
           </div>
         </div>
 
-        <div class="registration-panel hidden" data-registration-panel="3">
+        <div class="registration-panel hidden" data-registration-panel="2">
           <div class="registration-summary">
             ${summaryRow('Ngày bắt đầu', '<span id="register-start-date">—</span>', true)}
             ${summaryRow('Ngày hết hạn', '<span id="register-end-date">—</span>', true)}
             ${summaryRow('Giá/tháng', '<span id="register-price-per-month">—</span>', true)}
             ${summaryRow('Số tháng', '<span id="register-preview-months">—</span>', true)}
             ${summaryRow('Tạm tính', '<span id="register-subtotal">—</span>', true)}
+            ${summaryRow('Giảm giá', '<span id="register-discount-amount">0 đ</span>', true)}
             ${summaryRow('Tổng tiền', '<span id="register-total-amount">—</span>', true)}
           </div>
           ${renderVietQrPaymentCard()}
         </div>
 
-        <div class="registration-panel hidden" data-registration-panel="4">
-          <div class="registration-review-grid">
-            <div class="settings-list">
-              ${summaryRow('Khách hàng', '<span id="review-customer-name">—</span>', true)}
-              ${summaryRow('Số điện thoại', '<span id="review-phone">—</span>', true)}
-              ${summaryRow('Facebook ID', '<span id="review-facebook-id">—</span>', true)}
-              ${summaryRow('Trạng thái khách hàng', '<span class="badge badge-pending">Chờ xác nhận</span>', true)}
-            </div>
-            <div class="settings-list">
-              ${summaryRow('Loại hình kinh doanh', '<span id="review-business-type">—</span>', true)}
-              ${summaryRow('Số tháng', '<span id="review-months">—</span>', true)}
-              ${summaryRow('Ngày hết hạn', '<span id="review-end-date">—</span>', true)}
-              ${summaryRow('Tổng tiền', '<span id="review-total-amount">—</span>', true)}
-            </div>
-          </div>
-          <div class="registration-summary">
-            ${summaryRow('Trạng thái Kiosk', '<span class="badge badge-pending">Chờ xác nhận</span>', true)}
-            ${summaryRow('Trạng thái thanh toán', '<span class="badge badge-pending">Chờ xác nhận</span>', true)}
-          </div>
-        </div>
-
         <div class="registration-actions">
-          <button class="btn-secondary" id="register-prev-button" type="button">Trước</button>
+          <button class="btn-secondary hidden" id="register-prev-button" type="button">Quay lại</button>
           <button class="btn-primary" id="register-next-button" type="button">Tiếp tục</button>
-          <button class="btn-primary hidden" id="register-submit-button" type="submit">Gửi đăng ký</button>
+          <button class="btn-secondary hidden" id="register-cancel-button" type="button">Hủy</button>
+          <button class="btn-primary hidden" id="register-submit-button" type="submit">Tôi đã thanh toán</button>
         </div>
       </form>
       <div id="registration-success" class="registration-success hidden"></div>
@@ -190,19 +159,12 @@ function bindRegistrationEvents() {
 
   document.getElementById('register-next-button')?.addEventListener('click', () => {
     if (!validateStep(state.currentStep)) return;
-
-    if (state.currentStep === 2 || state.currentStep === 3) {
-      updatePreview();
-    }
-
-    if (state.currentStep === 3) {
-      updateReview();
-    }
-
     state.currentStep = Math.min(state.currentStep + 1, STEPS.length - 1);
     clearFormError();
     renderStep();
   });
+
+  document.getElementById('register-cancel-button')?.addEventListener('click', cancelRegistration);
 
   document.getElementById('register-category')?.addEventListener('change', async (event) => {
     state.selectedBusinessType = null;
@@ -218,7 +180,8 @@ function bindRegistrationEvents() {
   });
 
   document.getElementById('register-months')?.addEventListener('input', updatePreview);
-  document.getElementById('register-payment-method')?.addEventListener('change', updateVietQrPayment);
+  document.getElementById('register-discount')?.addEventListener('input', updatePreview);
+  document.getElementById('register-facebook-name')?.addEventListener('input', updateVietQrPayment);
 
   document.getElementById('public-registration-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -262,6 +225,7 @@ async function loadBusinessTypes(categoryId) {
   if (!categoryId) {
     select.innerHTML = '<option value="">Chọn danh mục trước</option>';
     setText('register-selected-price', '—');
+    setText('register-step-subtotal', '—');
     return;
   }
 
@@ -281,24 +245,25 @@ async function loadBusinessTypes(categoryId) {
   }
 }
 
-function submitRegistration() {
+async function submitRegistration() {
   const submitButton = document.getElementById('register-submit-button');
   clearFormError();
   setSubmitting(submitButton, true);
 
-  return RegistrationService.submit({
-    customer: readCustomerPayload(),
-    businessTypeId: readValue('register-business-type'),
-    months: readNumber('register-months'),
-    paymentMethod: readValue('register-payment-method') || 'transfer',
-  }).then(({ data }) => {
-    state.submitted = data;
+  try {
+    const { data } = await RegistrationService.submit({
+      customer: readCustomerPayload(),
+      businessTypeId: readValue('register-business-type'),
+      months: readNumber('register-months'),
+      discount: readNumber('register-discount'),
+      discountReason: readValue('register-discount-reason'),
+    });
     renderSuccess(data);
-  }).catch((error) => {
+  } catch (error) {
     showFormError(error?.message || 'Không thể gửi đăng ký vào Supabase.');
-  }).finally(() => {
+  } finally {
     setSubmitting(submitButton, false);
-  });
+  }
 }
 
 function updateSelectedBusinessType() {
@@ -315,37 +280,34 @@ function updatePreview() {
     updateSelectedBusinessType();
     state.preview = RegistrationService.calculatePreview(state.selectedBusinessType, {
       months: readNumber('register-months'),
+      discount: readNumber('register-discount'),
     });
 
+    setText('register-step-subtotal', formatCurrency(state.preview.subtotal));
+    setText('register-step-discount', formatCurrency(state.preview.discount));
+    setText('register-step-total', formatCurrency(state.preview.totalAmount));
     setText('register-start-date', formatDate(state.preview.startDate));
     setText('register-end-date', formatDate(state.preview.endDate));
     setText('register-price-per-month', formatCurrency(state.preview.pricePerMonth));
     setText('register-preview-months', String(state.preview.months));
     setText('register-subtotal', formatCurrency(state.preview.subtotal));
+    setText('register-discount-amount', formatCurrency(state.preview.discount));
     setText('register-total-amount', formatCurrency(state.preview.totalAmount));
     updateVietQrPayment();
   } catch {
     state.preview = null;
+    setText('register-step-subtotal', '—');
+    setText('register-step-discount', '—');
+    setText('register-step-total', '—');
     setText('register-start-date', '—');
     setText('register-end-date', '—');
     setText('register-price-per-month', '—');
     setText('register-preview-months', '—');
     setText('register-subtotal', '—');
+    setText('register-discount-amount', '—');
     setText('register-total-amount', '—');
     clearVietQrPayment();
   }
-}
-
-function updateReview() {
-  if (!state.preview) updatePreview();
-
-  setText('review-customer-name', readValue('register-facebook-name') || '—');
-  setText('review-phone', readValue('register-phone') || '—');
-  setText('review-facebook-id', readValue('register-facebook-id') || '—');
-  setText('review-business-type', state.selectedBusinessType?.name || '—');
-  setText('review-months', state.preview ? String(state.preview.months) : '—');
-  setText('review-end-date', state.preview ? formatDate(state.preview.endDate) : '—');
-  setText('review-total-amount', state.preview ? formatCurrency(state.preview.totalAmount) : '—');
 }
 
 function validateStep(step) {
@@ -363,7 +325,6 @@ function validateStep(step) {
     }
 
     if (!validateOptionalUrl('register-facebook-link', 'Link Facebook')) return false;
-    if (!validateOptionalUrl('register-facebook-group-link', 'Link nhóm Facebook')) return false;
   }
 
   if (step === 1) {
@@ -376,17 +337,26 @@ function validateStep(step) {
       showFormError('Loại hình kinh doanh là bắt buộc.');
       return false;
     }
-  }
 
-  if (step === 2) {
     const months = readNumber('register-months');
     if (!Number.isInteger(months) || months < 1) {
       showFormError('Số tháng phải là số nguyên lớn hơn 0.');
       return false;
     }
+
+    const discount = readNumber('register-discount');
+    if (!Number.isFinite(discount) || discount < 0) {
+      showFormError('Giảm giá phải là số lớn hơn hoặc bằng 0.');
+      return false;
+    }
+
+    if (discount > 0 && !readValue('register-discount-reason')) {
+      showFormError('Cần nhập lý do khi áp dụng giảm giá.');
+      return false;
+    }
   }
 
-  if (step === 3 || step === 4) {
+  if (step >= 1) {
     updatePreview();
     if (!state.preview) {
       showFormError('Không thể tính giá từ loại hình kinh doanh và số tháng hiện tại.');
@@ -405,7 +375,7 @@ function validateOptionalUrl(id, label) {
     const url = new URL(value);
     if (url.protocol === 'http:' || url.protocol === 'https:') return true;
   } catch {
-    // Fall through to shared message.
+    // Use the shared validation message below.
   }
 
   showFormError(`${label} không hợp lệ.`);
@@ -423,16 +393,34 @@ function renderStep() {
     panel.classList.toggle('hidden', Number(panel.dataset.registrationPanel) !== state.currentStep);
   });
 
-  const prev = document.getElementById('register-prev-button');
-  const next = document.getElementById('register-next-button');
-  const submit = document.getElementById('register-submit-button');
+  const isPaymentStep = state.currentStep === STEPS.length - 1;
+  document.getElementById('register-prev-button')?.classList.toggle(
+    'hidden',
+    state.currentStep === 0 || isPaymentStep,
+  );
+  document.getElementById('register-next-button')?.classList.toggle('hidden', isPaymentStep);
+  document.getElementById('register-cancel-button')?.classList.toggle('hidden', !isPaymentStep);
+  document.getElementById('register-submit-button')?.classList.toggle('hidden', !isPaymentStep);
 
-  if (prev) prev.disabled = state.currentStep === 0;
-  next?.classList.toggle('hidden', state.currentStep === STEPS.length - 1);
-  submit?.classList.toggle('hidden', state.currentStep !== STEPS.length - 1);
+  if (state.currentStep >= 1) updatePreview();
+}
 
-  if (state.currentStep === 3) updatePreview();
-  if (state.currentStep === 4) updateReview();
+function cancelRegistration() {
+  const form = document.getElementById('public-registration-form');
+  form?.reset();
+  resetState();
+  clearFormError();
+  clearVietQrPayment();
+
+  const businessTypeSelect = document.getElementById('register-business-type');
+  if (businessTypeSelect) {
+    businessTypeSelect.disabled = true;
+    businessTypeSelect.innerHTML = '<option value="">Chọn danh mục trước</option>';
+  }
+
+  renderStep();
+  loadCategories();
+  document.querySelector('.registration-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderSuccess(data) {
@@ -445,16 +433,15 @@ function renderSuccess(data) {
   success.innerHTML = `
     <div class="empty-state">
       <div class="empty-state-icon">✓</div>
-      <div class="empty-state-title">Đã gửi đăng ký</div>
-      <div class="empty-state-message">Thanh toán đang ở trạng thái chờ xác nhận để admin duyệt.</div>
+      <div class="empty-state-title">Đã ghi nhận thanh toán</div>
+      <div class="empty-state-message">Đăng ký đã được gửi và đang chờ Admin xác nhận thanh toán.</div>
     </div>
     <div class="registration-summary">
       ${summaryRow('Khách hàng', escapeHtml(data.customer?.facebook_name || '—'), true)}
       ${summaryRow('Kiosk', escapeHtml(data.kiosk?.facebook_name || '—'), true)}
-      ${summaryRow('Trạng thái thanh toán', '<span class="badge badge-pending">Chờ xác nhận</span>', true)}
+      ${summaryRow('Trạng thái', '<span class="badge badge-pending">Chờ Admin xác nhận</span>', true)}
       ${summaryRow('Tổng tiền', formatCurrency(data.preview?.totalAmount || 0), true)}
     </div>
-    ${renderStaticVietQrPayment(data.preview, data.kiosk?.facebook_name || data.customer?.facebook_name, data.payment?.payment_method)}
   `;
 }
 
@@ -467,7 +454,7 @@ function renderVietQrPaymentCard() {
       </div>
       <div class="vietqr-payment-grid">
         <div class="vietqr-image-frame">
-          <img id="register-vietqr-image" alt="Mã QR chuyển khoản đăng ký kiosk" loading="lazy" />
+          <img id="register-vietqr-image" alt="Mã QR chuyển khoản đăng ký kiosk" loading="eager" />
         </div>
         <div class="settings-list">
           ${summaryRow('Ngân hàng', VIETQR_CONFIG.bankName)}
@@ -482,44 +469,13 @@ function renderVietQrPaymentCard() {
   `;
 }
 
-function renderStaticVietQrPayment(preview, kioskName, paymentMethod = 'transfer') {
-  const payment = buildVietQrPayment(preview, kioskName, paymentMethod);
-  if (!payment) return '';
-
-  return `
-    <section class="vietqr-payment-card">
-      <div class="vietqr-payment-header">
-        <h3>Chuyển khoản VietQR</h3>
-        <span class="badge badge-active">${escapeHtml(VIETQR_CONFIG.bankName)}</span>
-      </div>
-      <div class="vietqr-payment-grid">
-        <div class="vietqr-image-frame">
-          <img src="${escapeHtml(payment.qrUrl)}" alt="Mã QR chuyển khoản đăng ký kiosk" loading="lazy" />
-        </div>
-        <div class="settings-list">
-          ${summaryRow('Ngân hàng', VIETQR_CONFIG.bankName)}
-          ${summaryRow('Số tài khoản', VIETQR_CONFIG.accountNo)}
-          ${summaryRow('Người thụ hưởng', VIETQR_CONFIG.accountNameDisplay)}
-          ${summaryRow('Số tiền', formatCurrency(payment.amount))}
-          ${summaryRow('Nội dung CK', payment.transferContent)}
-          <a class="btn-secondary link-button" href="${escapeHtml(payment.qrUrl)}" target="_blank" rel="noreferrer">Mở mã QR</a>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
 function updateVietQrPayment() {
   const card = document.getElementById('register-vietqr-card');
   const image = document.getElementById('register-vietqr-image');
   const link = document.getElementById('register-vietqr-link');
   const amount = document.getElementById('register-vietqr-amount');
   const content = document.getElementById('register-vietqr-content');
-  const payment = buildVietQrPayment(
-    state.preview,
-    readValue('register-facebook-name'),
-    readValue('register-payment-method') || 'transfer',
-  );
+  const payment = buildVietQrPayment(state.preview, readValue('register-facebook-name'));
 
   if (!card || !image || !link || !amount || !content) return;
 
@@ -547,9 +503,7 @@ function clearVietQrPayment() {
   setText('register-vietqr-content', '—');
 }
 
-function buildVietQrPayment(preview, kioskName, paymentMethod = 'transfer') {
-  if (paymentMethod !== 'transfer') return null;
-
+function buildVietQrPayment(preview, kioskName) {
   const amount = Math.round(Number(preview?.totalAmount || 0));
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
@@ -590,7 +544,6 @@ function readCustomerPayload() {
     facebook_name: readValue('register-facebook-name'),
     facebook_id: readValue('register-facebook-id'),
     facebook_link: readValue('register-facebook-link'),
-    facebook_group_link: readValue('register-facebook-group-link'),
     phone: readValue('register-phone'),
     address: readValue('register-address'),
     note: readValue('register-note'),
@@ -627,7 +580,7 @@ function setText(id, value) {
 function setSubmitting(button, isSubmitting) {
   if (!button) return;
   button.disabled = isSubmitting;
-  button.textContent = isSubmitting ? 'Đang gửi...' : 'Gửi đăng ký';
+  button.textContent = isSubmitting ? 'Đang gửi...' : 'Tôi đã thanh toán';
 }
 
 function resetState() {
@@ -636,5 +589,4 @@ function resetState() {
   state.businessTypes = [];
   state.selectedBusinessType = null;
   state.preview = null;
-  state.submitted = null;
 }

@@ -218,6 +218,8 @@ function renderReportContent() {
 }
 
 function renderOverviewReport(report) {
+  const actionRows = getPriorityKiosks(report);
+
   return `
     ${renderSummaryCards([
       StatCard({ tone: 'blue', icon: '✅', value: report.summary.completedCount, label: 'Thanh toán hoàn thành' }),
@@ -226,8 +228,8 @@ function renderOverviewReport(report) {
       StatCard({ tone: 'red', icon: '❌', value: report.summary.expiredKiosks, label: 'Kiosk hết hạn' }),
     ])}
     <div class="report-grid">
-      ${renderReportCard('Khách hàng doanh thu cao', renderTable(topCustomerColumns(), report.topCustomers, 'Không có khách hàng phát sinh doanh thu trong kỳ.'))}
-      ${renderReportCard('Trạng thái thanh toán', renderTable(paymentStatusColumns(), report.paymentStatusRows, 'Không có thanh toán trong kỳ.'))}
+      ${renderReportCard('Top 10 khách hàng doanh thu cao', renderTable(topCustomerColumns(), report.topCustomers, 'Không có khách hàng phát sinh doanh thu trong kỳ.'))}
+      ${renderReportCard('Kiosk cần xử lý', renderTable(kioskActionColumns(), actionRows, 'Không có kiosk cần xử lý.'))}
     </div>
     <div class="stats-grid report-stats report-total-block">
       ${StatCard({ tone: 'green', icon: '💰', value: formatCurrency(report.summary.totalRevenue), label: 'Doanh thu trong kỳ', className: 'stat-card-fluid' })}
@@ -323,18 +325,45 @@ function topCustomerColumns() {
   return [
     { label: 'Khách hàng', render: (row) => renderCustomerLink(row.customerId, row.customerName) },
     { label: 'SĐT', render: (row) => escapeHtml(row.phone || '—') },
-    { label: 'Kiosk', render: (row) => Number(row.kioskCount || 0) },
     { label: 'Thanh toán', render: (row) => Number(row.paymentCount || 0) },
     { label: 'Tổng tiền', render: (row) => `<strong>${formatCurrency(row.totalAmount)}</strong>` },
   ];
 }
 
-function paymentStatusColumns() {
+function kioskActionColumns() {
   return [
-    { label: 'Trạng thái', render: (row) => renderStatusBadge(row.status, row.label) },
-    { label: 'Số payment', render: (row) => Number(row.paymentCount || 0) },
-    { label: 'Tổng tiền', render: (row) => formatCurrency(row.totalAmount) },
+    { label: 'Kiosk', render: (row) => renderKioskLink(row.id, row.facebookName) },
+    { label: 'Khách hàng', render: (row) => escapeHtml(row.customerName || '—') },
+    { label: 'Việc cần làm', render: renderKioskAction },
+    { label: 'Ngày hết hạn', render: (row) => formatDate(row.endDate) },
   ];
+}
+
+function getPriorityKiosks(report, limit = 10) {
+  const statusPriority = { pending: 0, expired: 1, warning: 2 };
+
+  return report.kioskRows
+    .filter((kiosk) => Object.hasOwn(statusPriority, kiosk.derivedStatus))
+    .sort((a, b) => {
+      const priorityDifference = statusPriority[a.derivedStatus] - statusPriority[b.derivedStatus];
+      if (priorityDifference) return priorityDifference;
+      return (a.daysLeft ?? Number.MAX_SAFE_INTEGER) - (b.daysLeft ?? Number.MAX_SAFE_INTEGER);
+    })
+    .slice(0, limit);
+}
+
+function renderKioskAction(row) {
+  return renderStatusBadge(row.derivedStatus, kioskActionLabel(row.derivedStatus));
+}
+
+function kioskActionLabel(status) {
+  const labels = {
+    pending: 'Duyệt đăng ký',
+    expired: 'Liên hệ gia hạn',
+    warning: 'Nhắc gia hạn',
+  };
+
+  return labels[status] || 'Kiểm tra';
 }
 
 function monthRevenueColumns() {
@@ -491,20 +520,22 @@ function exportCurrentReport() {
 function getExportRows() {
   const report = state.report;
   if (state.activeTab === 'overview') {
+    const actionRows = getPriorityKiosks(report);
+
     return [
       ...report.topCustomers.map((row) => ({
-        'Nhóm': 'Khách hàng doanh thu cao',
+        'Nhóm': 'Top 10 khách hàng doanh thu cao',
         'Khách hàng': row.customerName,
         'SĐT': row.phone,
-        'Số Kiosk': row.kioskCount,
         'Số thanh toán': row.paymentCount,
         'Tổng tiền': row.totalAmount,
       })),
-      ...report.paymentStatusRows.map((row) => ({
-        'Nhóm': 'Trạng thái thanh toán',
-        'Trạng thái': row.label,
-        'Số thanh toán': row.paymentCount,
-        'Tổng tiền': row.totalAmount,
+      ...actionRows.map((row) => ({
+        'Nhóm': 'Kiosk cần xử lý',
+        'Kiosk': row.facebookName,
+        'Khách hàng': row.customerName,
+        'Việc cần làm': kioskActionLabel(row.derivedStatus),
+        'Ngày hết hạn': row.endDate,
       })),
     ];
   }

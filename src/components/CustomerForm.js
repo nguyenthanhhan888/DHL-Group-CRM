@@ -7,7 +7,6 @@ const CUSTOMER_STATUSES = [
   { value: 'active', label: 'Hoạt động' },
   { value: 'pending', label: 'Chờ duyệt' },
   { value: 'inactive', label: 'Không hoạt động' },
-  { value: 'suspended', label: 'Tạm ngưng' },
 ];
 
 export function openCustomerForm({ customer = null, onSaved } = {}) {

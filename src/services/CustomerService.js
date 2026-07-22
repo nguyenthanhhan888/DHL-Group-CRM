@@ -99,7 +99,7 @@ async function findCustomerIdsByKioskState(supabase, kioskState) {
     const warningEndDate = new Date(today);
     warningEndDate.setDate(today.getDate() + EXPIRING_WINDOW_DAYS);
     query = query
-      .eq('status', 'active')
+      .in('status', ['active', 'warning'])
       .gte('end_date', todayDate)
       .lte('end_date', toDateOnly(warningEndDate));
   } else {

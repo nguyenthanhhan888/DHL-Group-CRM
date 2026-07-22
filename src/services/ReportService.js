@@ -4,7 +4,7 @@ import { startOfToday, toDateOnly } from '../utils/date.js';
 const REPORT_PAGE_SIZE = 1000;
 const MAX_REPORT_ROWS = 20000;
 const EXPIRING_WINDOW_DAYS = 30;
-const PAYMENT_SELECT = `
+const PAYMENT_FIELDS = `
   id,
   customer_id,
   kiosk_id,
@@ -18,8 +18,9 @@ const PAYMENT_SELECT = `
   payment_method,
   payment_status,
   confirmed_by,
-  customers(facebook_name, phone),
-  kiosks!inner(
+  customers(facebook_name, phone)
+`;
+const PAYMENT_KIOSK_FIELDS = `
     id,
     facebook_name,
     facebook_id,
@@ -29,7 +30,6 @@ const PAYMENT_SELECT = `
     business_type_id,
     categories(name),
     business_types(id, name, category_id, price_per_month)
-  )
 `;
 const KIOSK_SELECT = `
   id,
@@ -64,10 +64,12 @@ export const ReportService = {
 };
 
 async function getPayments(supabase, filters) {
+  const requiresKiosk = Boolean(filters.categoryId || filters.businessTypeId);
+
   return fetchReportRows((from, to) => {
     let query = supabase
       .from('payments')
-      .select(PAYMENT_SELECT)
+      .select(paymentSelect(requiresKiosk))
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -78,6 +80,11 @@ async function getPayments(supabase, filters) {
 
     return query;
   });
+}
+
+function paymentSelect(requiresKiosk) {
+  const relation = requiresKiosk ? 'kiosks!inner' : 'kiosks';
+  return `${PAYMENT_FIELDS}, ${relation}(${PAYMENT_KIOSK_FIELDS})`;
 }
 
 async function getKiosks(supabase, filters) {
@@ -134,7 +141,6 @@ function buildReportData(payments, kiosks, filters) {
     revenueByBusinessType: buildRevenueByBusinessType(completedPayments),
     revenueByPaymentMethod: buildRevenueByPaymentMethod(completedPayments),
     topCustomers: buildTopCustomers(completedPayments),
-    paymentStatusRows: buildPaymentStatusRows(payments),
     kioskStatusRows: buildKioskStatusRows(kioskRows),
     kioskRows,
     reconciliationRows,
@@ -213,50 +219,17 @@ function buildTopCustomers(payments) {
       customerName: payment.customers?.facebook_name || 'Không tên',
       phone: payment.customers?.phone || '',
       paymentCount: 0,
-      kioskIds: new Set(),
       totalAmount: 0,
     };
 
     row.paymentCount += 1;
     row.totalAmount += Number(payment.total_amount || 0);
-    if (payment.kiosk_id) row.kioskIds.add(payment.kiosk_id);
     rows.set(key, row);
   });
 
   return [...rows.values()]
-    .map((row) => ({
-      ...row,
-      kioskCount: row.kioskIds.size,
-      kioskIds: undefined,
-    }))
     .sort((a, b) => b.totalAmount - a.totalAmount)
-    .slice(0, 20);
-}
-
-function buildPaymentStatusRows(payments) {
-  const labels = {
-    pending: 'Chờ xác nhận',
-    completed: 'Hoàn thành',
-    rejected: 'Bị từ chối',
-    cancelled: 'Đã hủy',
-  };
-  const rows = new Map();
-
-  payments.forEach((payment) => {
-    const status = normalizeStatus(payment.payment_status) || 'unknown';
-    const row = rows.get(status) || {
-      status,
-      label: labels[status] || status,
-      paymentCount: 0,
-      totalAmount: 0,
-    };
-
-    row.paymentCount += 1;
-    row.totalAmount += Number(payment.total_amount || 0);
-    rows.set(status, row);
-  });
-
-  return [...rows.values()].sort((a, b) => b.totalAmount - a.totalAmount);
+    .slice(0, 10);
 }
 
 function buildKioskRows(kiosks) {
@@ -337,6 +310,10 @@ function buildReconciliationRows(payments) {
       issueLevel: 'info',
       issue: '',
     };
+
+    if (!payment.kiosk_id || !payment.kiosks) {
+      rows.push({ ...baseRow, issue: 'Thiếu liên kết Kiosk', issueLevel: 'warning' });
+    }
 
     if (status === 'pending') {
       rows.push({ ...baseRow, issue: 'Chờ xác nhận thanh toán', issueLevel: 'info' });

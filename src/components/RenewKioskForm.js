@@ -6,12 +6,6 @@ import { formatCurrency } from '../utils/currency.js';
 import { formatDate } from '../utils/date.js';
 import { escapeHtml } from '../utils/html.js';
 
-const PAYMENT_METHODS = [
-  { value: 'transfer', label: 'Chuyển khoản' },
-  { value: 'cash', label: 'Tiền mặt' },
-  { value: 'momo', label: 'Momo' },
-];
-
 let currentKiosk = null;
 
 export async function openRenewKioskForm({ kioskId, onSaved } = {}) {
@@ -113,13 +107,6 @@ function renderRenewForm(kiosk) {
       </div>
 
       <label class="form-group">
-        <span>Phương thức thanh toán</span>
-        <select class="form-control" id="renew-payment-method">
-          ${PAYMENT_METHODS.map((method) => `<option value="${method.value}">${method.label}</option>`).join('')}
-        </select>
-      </label>
-
-      <label class="form-group">
         <span>Lý do giảm giá</span>
         <input class="form-control" id="renew-discount-reason" type="text" autocomplete="off" />
       </label>
@@ -194,7 +181,6 @@ function readRenewPayload() {
     months: readNumber('renew-months'),
     discount: readNumber('renew-discount'),
     discountReason: readValue('renew-discount-reason'),
-    paymentMethod: readValue('renew-payment-method') || 'transfer',
     note: readValue('renew-note'),
   };
 }

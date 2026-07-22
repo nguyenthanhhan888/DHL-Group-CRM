@@ -8,13 +8,6 @@ import { debounce } from '../utils/dom.js';
 import { escapeHtml } from '../utils/html.js';
 
 const CUSTOMER_PAGE_SIZE = 50;
-const PAYMENT_METHODS = [
-  { value: 'transfer', label: 'Chuyển khoản' },
-  { value: 'bank_transfer', label: 'Chuyển khoản NH' },
-  { value: 'cash', label: 'Tiền mặt' },
-  { value: 'momo', label: 'Momo' },
-];
-
 let customers = [];
 let businessTypes = [];
 
@@ -114,13 +107,6 @@ function renderKioskForm() {
         <span>Loại hình kinh doanh *</span>
         <select class="form-control" id="add-kiosk-business-type" required disabled>
           <option value="">Đang tải loại hình kinh doanh...</option>
-        </select>
-      </label>
-
-      <label class="form-group">
-        <span>Phương thức thanh toán</span>
-        <select class="form-control" id="add-kiosk-payment-method">
-          ${PAYMENT_METHODS.map((method) => `<option value="${method.value}">${method.label}</option>`).join('')}
         </select>
       </label>
 
@@ -277,7 +263,6 @@ function readKioskPayload() {
     customerId: readValue('add-kiosk-customer'),
     businessTypeId: readValue('add-kiosk-business-type'),
     months: readNumber('add-kiosk-months'),
-    paymentMethod: readValue('add-kiosk-payment-method') || 'transfer',
     kiosk: {
       facebook_name: readValue('add-kiosk-facebook-name'),
       facebook_id: optionalValue('add-kiosk-facebook-id'),

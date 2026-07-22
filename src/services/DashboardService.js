@@ -115,7 +115,7 @@ async function getExpiringKiosks(limit = 24) {
     supabase
       .from('kiosks')
       .select('id, facebook_name, end_date, customers(facebook_name, phone)')
-      .eq('status', 'active')
+      .in('status', ['active', 'warning'])
       .gte('end_date', toDateOnly(today))
       .lte('end_date', toDateOnly(thirtyDaysFromNow))
       .order('end_date', { ascending: true })

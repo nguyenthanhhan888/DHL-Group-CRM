@@ -1,8 +1,8 @@
 import { applyPagination, applySort, requireSupabaseClient, runQuery } from './BaseService.js';
 import { addMonths, parseDateOnly, startOfToday, toDateOnly } from '../utils/date.js';
 
-const PAYMENT_SELECT = '*, customers(facebook_name, phone), kiosks!inner(facebook_name, facebook_id, business_type_id, business_types(name))';
-const PAYMENT_SUMMARY_SELECT = 'total_amount, payment_status, payment_method, created_at, customer_id, kiosk_id, kiosks!inner(business_type_id)';
+const PAYMENT_SELECT = '*, customers(facebook_name, phone), kiosks(facebook_name, facebook_id, business_type_id, business_types(name))';
+const PAYMENT_SUMMARY_SELECT = 'total_amount, payment_status, payment_method, created_at, customer_id, kiosk_id';
 
 export const PaymentService = {
   calculateRenewalPreview(kiosk, { months = 1, discount = 0 } = {}) {
@@ -14,7 +14,6 @@ export const PaymentService = {
     months = 1,
     discount = 0,
     discountReason = '',
-    paymentMethod = 'transfer',
     note = '',
   } = {}) {
     const supabase = requireSupabaseClient();
@@ -30,7 +29,7 @@ export const PaymentService = {
       discount: renewal.discount,
       discount_reason: normalizeOptionalText(discountReason),
       total_amount: renewal.totalAmount,
-      payment_method: paymentMethod || 'transfer',
+      payment_method: 'transfer',
       payment_status: 'pending',
       note: normalizeOptionalText(note),
     };
@@ -56,7 +55,10 @@ export const PaymentService = {
     pagination,
   } = {}) {
     const supabase = requireSupabaseClient();
-    const searchContext = await buildSearchContext(supabase, searchTerm);
+    const [searchContext, businessTypeKioskIds] = await Promise.all([
+      buildSearchContext(supabase, searchTerm),
+      findKioskIdsByBusinessType(supabase, businessTypeId),
+    ]);
     let query = supabase
       .from('payments')
       .select(PAYMENT_SELECT, { count: 'exact' });
@@ -65,7 +67,7 @@ export const PaymentService = {
       searchContext,
       status,
       paymentMethod,
-      businessTypeId,
+      businessTypeKioskIds,
     });
 
     return runQuery(applyPagination(applySort(query, sort), pagination));
@@ -80,12 +82,15 @@ export const PaymentService = {
     pagination,
   } = {}) {
     const supabase = requireSupabaseClient();
-    const searchContext = await buildSearchContext(supabase, searchTerm);
+    const [searchContext, businessTypeKioskIds] = await Promise.all([
+      buildSearchContext(supabase, searchTerm),
+      findKioskIdsByBusinessType(supabase, businessTypeId),
+    ]);
     const filters = {
       searchContext,
       status,
       paymentMethod,
-      businessTypeId,
+      businessTypeKioskIds,
     };
 
     let listQuery = supabase
@@ -117,7 +122,10 @@ export const PaymentService = {
     businessTypeId = '',
   } = {}) {
     const supabase = requireSupabaseClient();
-    const searchContext = await buildSearchContext(supabase, searchTerm);
+    const [searchContext, businessTypeKioskIds] = await Promise.all([
+      buildSearchContext(supabase, searchTerm),
+      findKioskIdsByBusinessType(supabase, businessTypeId),
+    ]);
     let query = supabase
       .from('payments')
       .select(PAYMENT_SUMMARY_SELECT);
@@ -126,7 +134,7 @@ export const PaymentService = {
       searchContext,
       status,
       paymentMethod,
-      businessTypeId,
+      businessTypeKioskIds,
     });
 
     const { data } = await runQuery(query);
@@ -197,6 +205,36 @@ export const PaymentService = {
     );
   },
 
+  async cancelRegistration(id) {
+    const supabase = requireSupabaseClient();
+    const { data: payment } = await runQuery(
+      supabase
+        .from('payments')
+        .update({ payment_status: 'cancelled' })
+        .eq('id', id)
+        .eq('payment_status', 'pending')
+        .select('id, customer_id, kiosk_id, customers(status), kiosks(status)')
+        .single(),
+    );
+
+    try {
+      await updatePendingRegistrationRecords(supabase, payment, 'inactive');
+      return { data: payment };
+    } catch (error) {
+      await Promise.allSettled([
+        updatePendingRegistrationRecords(supabase, payment, 'pending', 'inactive'),
+        runQuery(
+          supabase
+            .from('payments')
+            .update({ payment_status: 'pending' })
+            .eq('id', id)
+            .eq('payment_status', 'cancelled'),
+        ),
+      ]);
+      throw error;
+    }
+  },
+
   async reject(id) {
     const supabase = requireSupabaseClient();
     return runQuery(
@@ -210,6 +248,34 @@ export const PaymentService = {
     );
   },
 };
+
+async function updatePendingRegistrationRecords(supabase, payment, nextStatus, currentStatus = 'pending') {
+  const updates = [];
+
+  if (payment.kiosk_id && payment.kiosks?.status === 'pending') {
+    updates.push(runQuery(
+      supabase
+        .from('kiosks')
+        .update({ status: nextStatus })
+        .eq('id', payment.kiosk_id)
+        .eq('status', currentStatus),
+    ));
+  }
+
+  if (payment.customer_id && payment.customers?.status === 'pending') {
+    updates.push(runQuery(
+      supabase
+        .from('customers')
+        .update({ status: nextStatus })
+        .eq('id', payment.customer_id)
+        .eq('status', currentStatus),
+    ));
+  }
+
+  const results = await Promise.allSettled(updates);
+  const failedUpdate = results.find((result) => result.status === 'rejected');
+  if (failedUpdate) throw failedUpdate.reason;
+}
 
 async function getRenewalKiosk(supabase, kioskId) {
   if (!kioskId) {
@@ -304,11 +370,15 @@ function applyPaymentFilters(query, {
   searchContext,
   status = '',
   paymentMethod = '',
-  businessTypeId = '',
+  businessTypeKioskIds = null,
 }) {
   if (status) query = query.eq('payment_status', status);
   if (paymentMethod) query = query.eq('payment_method', paymentMethod);
-  if (businessTypeId) query = query.eq('kiosks.business_type_id', businessTypeId);
+  if (Array.isArray(businessTypeKioskIds)) {
+    query = businessTypeKioskIds.length
+      ? query.in('kiosk_id', businessTypeKioskIds)
+      : query.eq('kiosk_id', -1);
+  }
 
   if (searchContext?.searchTerm) {
     query = query.or(buildSearchFilter(searchContext));
@@ -408,6 +478,19 @@ async function findKioskIds(supabase, searchTerm, businessTypeIds = []) {
     .from('kiosks')
     .select('id')
     .or(conditions.join(','))
+    .limit(1000);
+
+  if (error) throw error;
+  return (data || []).map((item) => item.id).filter(Boolean);
+}
+
+async function findKioskIdsByBusinessType(supabase, businessTypeId) {
+  if (!businessTypeId) return null;
+
+  const { data, error } = await supabase
+    .from('kiosks')
+    .select('id')
+    .eq('business_type_id', businessTypeId)
     .limit(1000);
 
   if (error) throw error;

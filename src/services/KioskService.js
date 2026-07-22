@@ -102,7 +102,7 @@ function applyStatusFilter(query, status) {
   warningEndDate.setDate(today.getDate() + EXPIRING_WINDOW_DAYS);
 
   return query
-    .eq('status', 'active')
+    .in('status', ['active', 'warning'])
     .gte('end_date', todayDate)
     .lte('end_date', toDateOnly(warningEndDate));
 }

@@ -49,7 +49,6 @@ export function CustomersPage() {
         <option value="active">Hoạt động</option>
         <option value="pending">Chờ duyệt</option>
         <option value="inactive">Không hoạt động</option>
-        <option value="suspended">Tạm ngưng</option>
       </select>
       <select id="customer-kiosk-state-filter" class="filter-select" aria-label="Lọc tình trạng kiosk">
         <option value="">Tất cả tình trạng Kiosk</option>
@@ -306,9 +305,6 @@ function renderStatusBadge(status) {
     active: 'Hoạt động',
     pending: 'Chờ duyệt',
     inactive: 'Không hoạt động',
-    potential: 'Tiềm năng',
-    suspended: 'Tạm ngưng',
-    expired: 'Hết hạn',
   };
   return `<span class="badge badge-${safeClass}">${labels[normalized] || escapeHtml(status || 'Không rõ')}</span>`;
 }
