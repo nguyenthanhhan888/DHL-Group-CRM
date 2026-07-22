@@ -2,7 +2,7 @@ import { applyPagination, applySort, requireSupabaseClient, runQuery } from './B
 import { addMonths, parseDateOnly, startOfToday, toDateOnly } from '../utils/date.js';
 
 const PAYMENT_SELECT = '*, customers(facebook_name, phone), kiosks(facebook_name, facebook_id, business_type_id, business_types(name))';
-const PAYMENT_SUMMARY_SELECT = 'total_amount, payment_status, payment_method, created_at, customer_id, kiosk_id';
+const PAYMENT_SUMMARY_SELECT = 'total_amount, payment_status, payment_method, start_date, customer_id, kiosk_id';
 
 export const PaymentService = {
   calculateRenewalPreview(kiosk, { months = 1, discount = 0 } = {}) {
@@ -408,7 +408,7 @@ function buildPaymentSummary(payments) {
 
     summary.totalRevenue += amount;
 
-    if (isSameMonth(payment.created_at, currentMonth)) {
+    if (isSameMonth(payment.start_date, currentMonth)) {
       summary.monthRevenue += amount;
     }
 
@@ -506,8 +506,8 @@ function normalizeSearchTerm(value) {
 
 function isSameMonth(value, target) {
   if (!value) return false;
-  const date = new Date(value);
-  return date.getFullYear() === target.getFullYear() && date.getMonth() === target.getMonth();
+  const targetMonth = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
+  return String(value).slice(0, 7) === targetMonth;
 }
 
 function isTransferMethod(value) {

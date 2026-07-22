@@ -18,8 +18,8 @@ export const DashboardService = {
       totalKiosks,
       activeKiosks,
       expiredKiosks,
-      monthKioskRevenue,
-      yearKioskRevenue,
+      monthPaymentRevenue,
+      yearPaymentRevenue,
       categoryDistribution,
       expiringKiosks,
       recentCustomers,
@@ -27,11 +27,11 @@ export const DashboardService = {
       countRows('customers'),
       countRows('kiosks'),
       countRows('kiosks', (query) => query
-        .eq('status', 'active')
+        .in('status', ['active', 'warning'])
         .or(`end_date.is.null,end_date.gte.${todayDate}`)),
       countRows('kiosks', (query) => query.or(`status.eq.expired,end_date.lt.${todayDate}`)),
-      getKioskRevenueInRange(monthStart, nextMonthStart),
-      getKioskRevenueInRange(yearStart, nextYearStart),
+      getPaymentRevenueInRange(monthStart, nextMonthStart),
+      getPaymentRevenueInRange(yearStart, nextYearStart),
       getCategoryDistribution(),
       getExpiringKiosks(),
       getRecentCustomers(),
@@ -43,11 +43,11 @@ export const DashboardService = {
         totalKiosks,
         activeKiosks,
         expiredKiosks,
-        revenueThisMonth: sumKioskRevenue(monthKioskRevenue, 'total_paid'),
-        revenueThisYear: sumKioskRevenue(yearKioskRevenue, 'kiosk_total_paid'),
+        revenueThisMonth: sumPaymentRevenue(monthPaymentRevenue),
+        revenueThisYear: sumPaymentRevenue(yearPaymentRevenue),
       },
       charts: {
-        monthlyRevenue: buildMonthlyRevenueSeries(yearKioskRevenue),
+        monthlyRevenue: buildMonthlyRevenueSeries(yearPaymentRevenue),
         categoryDistribution,
       },
       lists: {
@@ -71,12 +71,13 @@ async function countRows(tableName, applyFilters) {
   return count || 0;
 }
 
-async function getKioskRevenueInRange(startDate, endDate) {
+async function getPaymentRevenueInRange(startDate, endDate) {
   const supabase = requireSupabaseClient();
   const { data } = await runQuery(
     supabase
-      .from('kiosks')
-      .select('total_paid, kiosk_total_paid, start_date')
+      .from('payments')
+      .select('total_amount, start_date')
+      .eq('payment_status', 'completed')
       .gte('start_date', toDateOnly(startDate))
       .lt('start_date', toDateOnly(endDate)),
   );
@@ -137,20 +138,20 @@ async function getRecentCustomers(limit = 5) {
   return data || [];
 }
 
-function sumKioskRevenue(kiosks, field) {
-  return kiosks.reduce((total, kiosk) => total + Number(kiosk[field] || 0), 0);
+function sumPaymentRevenue(payments) {
+  return payments.reduce((total, payment) => total + Number(payment.total_amount || 0), 0);
 }
 
-function buildMonthlyRevenueSeries(kiosks) {
+function buildMonthlyRevenueSeries(payments) {
   const series = Array.from({ length: 12 }, (_, index) => ({
     month: index,
     total: 0,
   }));
 
-  for (const kiosk of kiosks) {
-    const month = Number(String(kiosk.start_date || '').slice(5, 7)) - 1;
+  for (const payment of payments) {
+    const month = Number(String(payment.start_date || '').slice(5, 7)) - 1;
     if (series[month]) {
-      series[month].total += Number(kiosk.total_paid || 0);
+      series[month].total += Number(payment.total_amount || 0);
     }
   }
 

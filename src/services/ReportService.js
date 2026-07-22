@@ -73,8 +73,8 @@ async function getPayments(supabase, filters) {
       .order('created_at', { ascending: false })
       .range(from, to);
 
-    if (filters.startDate) query = query.gte('created_at', startOfDate(filters.startDate));
-    if (filters.endDate) query = query.lt('created_at', exclusiveEndOfDate(filters.endDate));
+    if (filters.startDate) query = query.gte('start_date', filters.startDate);
+    if (filters.endDate) query = query.lte('start_date', filters.endDate);
     if (filters.categoryId) query = query.eq('kiosks.category_id', filters.categoryId);
     if (filters.businessTypeId) query = query.eq('kiosks.business_type_id', filters.businessTypeId);
 
@@ -151,11 +151,12 @@ function buildRevenueByMonth(payments) {
   const rows = new Map();
 
   payments.forEach((payment) => {
-    const date = new Date(payment.created_at);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const key = String(payment.start_date || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(key)) return;
+    const [year, month] = key.split('-');
     const row = rows.get(key) || {
       key,
-      label: `Tháng ${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`,
+      label: `Tháng ${month}/${year}`,
       paymentCount: 0,
       totalAmount: 0,
     };
@@ -391,16 +392,6 @@ function normalizeDateString(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? value : '';
 }
 
-function startOfDate(dateString) {
-  return `${dateString}T00:00:00.000Z`;
-}
-
-function exclusiveEndOfDate(dateString) {
-  const [year, month, day] = dateString.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + 1));
-  return date.toISOString();
-}
-
 function normalizeStatus(value) {
   return String(value || '').toLowerCase();
 }
@@ -412,6 +403,7 @@ function paymentMethodLabel(value) {
     bank_transfer: 'Chuyển khoản NH',
     cash: 'Tiền mặt',
     momo: 'Momo',
+    import_excel: 'Dữ liệu nhập từ Excel',
     unknown: 'Không rõ',
     '': 'Không rõ',
   };
